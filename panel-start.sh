@@ -3,8 +3,8 @@
 APP=/opt/browser-panel
 
 NODE=/opt/node22/bin/node
-CHROME=/opt/chrome/chrome
-
+FIREFOX=/opt/ruyipage-firefox/firefox
+CHROME=/usr/bin/chromium-browser
 
 echo "[BP] stopping old processes..."
 
@@ -51,7 +51,7 @@ export BROWSER_CHROME_PATH=$CHROME
 
 export PLAYWRIGHT_CHROME_PATH=$CHROME
 
-
+export RUYIPAGE_FIREFOX_PATH=$FIREFOX
 
 nohup $NODE server/index.js \
 >>$APP/logs/panel.log 2>&1 &
