@@ -1,5 +1,8 @@
-依次安装:(在已经进入proot的环境下)
+Ubuntu 24.04部署proot
+mkdir MyWorlds && cd MyWorlds && curl -o toor.sh https://raw.githubusercontent.com/kuisa/proot-ub24/main/toor.sh && chmod +x toor.sh && bash toor.sh
 
+
+依次安装:(在已经进入proot的环境下)
 修复版web：
 curl -o /root/install-web.sh https://raw.githubusercontent.com/kuisa/proot-ub24/main/install-web.sh && chmod +x /root/install-web.sh && bash /root/install-web.sh
 
