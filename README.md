@@ -5,7 +5,11 @@ mkdir MyWorlds && cd MyWorlds && curl -o toor.sh https://raw.githubusercontent.c
 
 依次安装:(在已经进入proot的环境下)
 
-修复版web：
+init(初始化)：
+
+echo "127.0.0.1 localhost" > /etc/hosts && apt update && apt install curl wget nano sudo bash nginx -y
+
+安装并修复web：
 
 curl -o /root/install-web.sh https://raw.githubusercontent.com/kuisa/proot-ub24/main/install-web.sh && chmod +x /root/install-web.sh && bash /root/install-web.sh
 
