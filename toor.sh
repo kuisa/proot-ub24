@@ -19,24 +19,11 @@ ROOTFS_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/24.04.4/release/ubun
 # PRoot
 PROOT_URL="https://raw.githubusercontent.com/kof96zip/MyWorlds/main/proot-x86_64"
 
-TMP_DIR="/tmp/ubuntu24-install-$$"
+# 临时目录使用当前目录
+TMP_DIR="$SCRIPT_DIR/.ubuntu24-install-$$"
 
 export PROOT_NO_SECCOMP=1
-
-
-# ========================================
-# 基础检查
-# ========================================
-
-echo "========================================"
-echo " Ubuntu 24.04 PRoot"
-echo "========================================"
-echo "User   : $(whoami)"
-echo "UID    : $(id -u)"
-echo "WorkDir: $SCRIPT_DIR"
-echo "========================================"
-echo
-
+export PROOT_ENV=1
 
 # ========================================
 # 检查当前目录权限
@@ -67,7 +54,9 @@ if [ ! -d "$ROOTFS_DIR/etc" ]; then
 
     echo "[1/5] Downloading Ubuntu 24.04.4..."
 
-    curl -L -o "$TMP_DIR/ubuntu.tar.gz" "$ROOTFS_URL"
+    curl -L \
+        -o "$TMP_DIR/ubuntu.tar.gz" \
+        "$ROOTFS_URL"
 
     echo
     echo "[2/5] Extracting Ubuntu..."
@@ -82,7 +71,9 @@ if [ ! -d "$ROOTFS_DIR/etc" ]; then
 
     mkdir -p "$ROOTFS_DIR/usr/local/bin"
 
-    curl -L -o "$TOOR" "$PROOT_URL"
+    curl -L \
+        -o "$TOOR" \
+        "$PROOT_URL"
 
     chmod +x "$TOOR"
 
@@ -104,25 +95,25 @@ if [ ! -d "$ROOTFS_DIR/etc" ]; then
         "$ROOTFS_DIR/dev" \
         "$ROOTFS_DIR/root"
 
+    # ------------------------------------
+    # PRoot 下禁止服务自动启动
+    # ------------------------------------
+
+    mkdir -p "$ROOTFS_DIR/usr/sbin"
+
+    cat > "$ROOTFS_DIR/usr/sbin/policy-rc.d" <<'EOF'
+#!/bin/sh
+exit 101
+EOF
+
+    chmod 755 "$ROOTFS_DIR/usr/sbin/policy-rc.d"
+
+    echo "[OK] policy-rc.d configured."
+
     echo
     echo "[5/5] Cleaning..."
 
     rm -rf "$TMP_DIR"
-
-    echo
-    echo "========================================"
-    echo " Ubuntu 24.04 installation completed"
-    echo "========================================"
-    echo
-
-else
-
-    echo
-    echo "========================================"
-    echo " Ubuntu 24.04 detected"
-    echo " Skipping installation"
-    echo "========================================"
-    echo
 
 fi
 
@@ -133,12 +124,15 @@ fi
 
 if [ ! -x "$TOOR" ]; then
 
+    echo
     echo "PRoot binary missing."
     echo "Installing PRoot..."
 
     mkdir -p "$ROOTFS_DIR/usr/local/bin"
 
-    curl -L -o "$TOOR" "$PROOT_URL"
+    curl -L \
+        -o "$TOOR" \
+        "$PROOT_URL"
 
     chmod +x "$TOOR"
 
@@ -146,13 +140,69 @@ fi
 
 
 # ========================================
-# 更新 DNS
+# 每次启动前修复基础配置
+# ========================================
+
+echo
+echo "========================================"
+echo " Configuring Ubuntu 24.04"
+echo "========================================"
+
+
+# ========================================
+# DNS
 # ========================================
 
 if [ -f /etc/resolv.conf ]; then
+
     cp -L /etc/resolv.conf \
         "$ROOTFS_DIR/etc/resolv.conf" 2>/dev/null || true
+
 fi
+
+
+# ========================================
+# policy-rc.d
+# ========================================
+
+mkdir -p "$ROOTFS_DIR/usr/sbin"
+
+cat > "$ROOTFS_DIR/usr/sbin/policy-rc.d" <<'EOF'
+#!/bin/sh
+exit 101
+EOF
+
+chmod 755 "$ROOTFS_DIR/usr/sbin/policy-rc.d"
+
+echo "[OK] policy-rc.d"
+
+
+# ========================================
+# APT 配置
+# ========================================
+
+echo "[+] Configuring APT..."
+
+mkdir -p "$ROOTFS_DIR/etc/apt"
+mkdir -p "$ROOTFS_DIR/etc/apt/apt.conf.d"
+mkdir -p "$ROOTFS_DIR/etc/apt/sources.list.d"
+
+# 删除 Ubuntu Base 默认 sources
+rm -f "$ROOTFS_DIR/etc/apt/sources.list.d/"*.list
+rm -f "$ROOTFS_DIR/etc/apt/sources.list.d/"*.sources
+
+cat > "$ROOTFS_DIR/etc/apt/sources.list" <<'EOF'
+deb [trusted=yes] http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
+deb [trusted=yes] http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
+deb [trusted=yes] http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+deb [trusted=yes] http://archive.ubuntu.com/ubuntu noble-backports main restricted universe multiverse
+EOF
+
+cat > "$ROOTFS_DIR/etc/apt/apt.conf.d/99proot" <<'EOF'
+APT::Sandbox::User "root";
+EOF
+
+echo "[OK] APT configured"
 
 
 # ========================================
@@ -179,21 +229,11 @@ fi
 
 
 # ========================================
-# 启动
+# 启动 Ubuntu
 # ========================================
 
-echo "========================================"
-echo " Starting Ubuntu 24.04 PRoot"
-echo "========================================"
-echo "RootFS : $ROOTFS_DIR"
-echo "Arch   : $(uname -m)"
-echo "PRoot  : $TOOR"
-echo "User   : $(whoami)"
-echo "========================================"
-echo
-
 exec "$TOOR" \
-    --rootfs="$ROOTFS_DIR" \
+    -r "$ROOTFS_DIR" \
     -0 \
     -w "/root" \
     $BIND_OPTS \
