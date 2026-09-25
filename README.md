@@ -27,13 +27,7 @@ curl -o /root/panel-start.sh https://raw.githubusercontent.com/kuisa/proot-ub24/
 
 ff安装：
 
-wget -O /tmp/ff155.tar.xz "https://github.com/LoseNine/ruyipage/releases/download/v1.2.66/firefox-155.0.en-US.linux-x86_64.tar.xz" \
-  && rm -rf /opt/ruyipage-firefox \
-  && mkdir -p /tmp/ff155_ext \
-  && tar -xf /tmp/ff155.tar.xz -C /tmp/ff155_ext \
-  && mv /tmp/ff155_ext/firefox /opt/ruyipage-firefox \
-  && chmod -R 777 /opt/ruyipage-firefox \
-  && rm -rf /tmp/ff155.tar.xz /tmp/ff155_ext
+wget -O /tmp/ff155.tar.xz "https://github.com/LoseNine/ruyipage/releases/download/v1.2.66/firefox-155.0.en-US.linux-x86_64.tar.xz" && rm -rf /opt/ruyipage-firefox && mkdir -p /tmp/ff155_ext && tar -xf /tmp/ff155.tar.xz -C /tmp/ff155_ext && mv /tmp/ff155_ext/firefox /opt/ruyipage-firefox && chmod -R 777 /opt/ruyipage-firefox && rm -rf /tmp/ff155.tar.xz /tmp/ff155_ext
 
 ruyipage安装：
 
