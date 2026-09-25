@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+
+set -e
+
+echo "=================================================="
+echo " Browser Panel + RuyiPage 一键修复脚本"
+echo "=================================================="
+
+# ============================================================
+# 基础路径
+# ============================================================
+
+FIREFOX="/opt/ruyipage-firefox/firefox"
+PANEL="/opt/browser-panel"
+LAUNCHER="$PANEL/server/runtime/browser-launcher.js"
+ENV_FILE="/etc/profile.d/browser-panel-proot.sh"
+
+PYTHON_BIN="$(command -v python3 || true)"
+
+echo
+echo "[1/7] 检查环境..."
+
+if [ ! -f "$FIREFOX" ]; then
+    echo "❌ 找不到魔改 Firefox:"
+    echo "   $FIREFOX"
+    echo
+    echo "请先把 /opt/ruyipage-firefox 放到这台机器。"
+    exit 1
+fi
+
+echo "✅ Firefox:"
+echo "   $FIREFOX"
+
+if [ ! -f "$LAUNCHER" ]; then
+    echo "❌ 找不到 browser-launcher.js:"
+    echo "   $LAUNCHER"
+    exit 1
+fi
+
+echo "✅ Browser launcher:"
+echo "   $LAUNCHER"
+
+
+# ============================================================
+# 2. PRoot 环境变量
+# ============================================================
+
+echo
+echo "[2/7] 配置 PRoot 环境..."
+
+cat > "$ENV_FILE" <<'EOF'
+export PROOT_NO_SECCOMP=1
+export PROOT_ENV=1
+EOF
+
+chmod 644 "$ENV_FILE"
+
+echo "✅ 已写入:"
+echo "   $ENV_FILE"
+
+export PROOT_NO_SECCOMP=1
+export PROOT_ENV=1
+
+echo "   PROOT_NO_SECCOMP=1"
+echo "   PROOT_ENV=1"
+
+
+# ============================================================
+# 3. 备份 browser-launcher.js
+# ============================================================
+
+echo
+echo "[3/7] 备份 browser-launcher.js..."
+
+BACKUP="$LAUNCHER.bak.$(date +%Y%m%d_%H%M%S)"
+
+cp "$LAUNCHER" "$BACKUP"
+
+echo "✅ 备份:"
+echo "   $BACKUP"
+
+
+# ============================================================
+# 4. 修复 PRoot 降权
+# ============================================================
+
+echo
+echo "[4/7] 修复 PRoot 下的 setpriv / uid / gid..."
+
+python3 - "$LAUNCHER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+original = text
+
+# ------------------------------------------------------------
+# 方案：
+# PRoot 环境下不要使用 setpriv
+# PRoot 环境下不要给 spawn 设置 uid/gid
+# ------------------------------------------------------------
+
+# 如果代码中没有 isProot，就尝试在合适位置加入
+if "const isProot = process.env.PROOT_ENV === '1';" not in text:
+
+    marker = "let finalCmd = cmd;"
+
+    if marker in text:
+        text = text.replace(
+            marker,
+            "const isProot = process.env.PROOT_ENV === '1';\n\n" +
+            marker,
+            1
+        )
+    else:
+        print("⚠️ 找不到 `let finalCmd = cmd;`")
+        print("请手动检查 browser-launcher.js")
+        sys.exit(2)
+
+
+# ------------------------------------------------------------
+# 把：
+#
+# if (Number.isFinite(runUid) && Number.isFinite(runGid)) {
+#
+# 改成：
+#
+# if (!isProot && Number.isFinite(runUid) && Number.isFinite(runGid)) {
+#
+# ------------------------------------------------------------
+
+text = text.replace(
+    "if (Number.isFinite(runUid) && Number.isFinite(runGid)) {",
+    "if (!isProot && Number.isFinite(runUid) && Number.isFinite(runGid)) {"
+)
+
+
+# ------------------------------------------------------------
+# 防止 spawnOpts.uid / gid 在 PRoot 下生效
+# ------------------------------------------------------------
+
+old = """if (
+  (!finalCmd.includes('setpriv')) &&
+  Number.isFinite(runUid) &&
+  Number.isFinite(runGid)
+) {"""
+
+new = """if (
+  process.env.PROOT_ENV !== '1' &&
+  (!finalCmd.includes('setpriv')) &&
+  Number.isFinite(runUid) &&
+  Number.isFinite(runGid)
+) {"""
+
+text = text.replace(old, new)
+
+
+# ------------------------------------------------------------
+# 另一种可能的格式
+# ------------------------------------------------------------
+
+old2 = """if (
+    (!finalCmd.includes('setpriv')) &&
+    Number.isFinite(runUid) &&
+    Number.isFinite(runGid)
+) {"""
+
+new2 = """if (
+    process.env.PROOT_ENV !== '1' &&
+    (!finalCmd.includes('setpriv')) &&
+    Number.isFinite(runUid) &&
+    Number.isFinite(runGid)
+) {"""
+
+text = text.replace(old2, new2)
+
+
+if text == original:
+    print("⚠️ 没有检测到需要修改的降权代码。")
+    print("可能这台机器已经修复过。")
+else:
+    path.write_text(text)
+    print("✅ browser-launcher.js 已修改")
+
+PY
+
+
+# ============================================================
+# 5. 检查 ruyipage Marionette
+# ============================================================
+
+echo
+echo "[5/7] 检查 ruyipage Marionette..."
+
+RUYI_PATH=""
+
+if [ -n "$PYTHON_BIN" ]; then
+    RUYI_PATH="$(
+        "$PYTHON_BIN" - <<'PY'
+try:
+    import ruyipage
+    import os
+    print(os.path.dirname(ruyipage.__file__))
+except Exception:
+    pass
+PY
+    )"
+fi
+
+if [ -z "$RUYI_PATH" ]; then
+    echo "⚠️ 无法找到 ruyipage Python 路径"
+else
+    echo "✅ ruyipage:"
+    echo "   $RUYI_PATH"
+
+    MARIONETTE_FILE="$RUYI_PATH/_adapter/marionette.py"
+
+    if [ -f "$MARIONETTE_FILE" ]; then
+
+        if grep -q "MARIONETTE_PORT = 2828" "$MARIONETTE_FILE"; then
+            echo "✅ ruyipage Marionette 已经是 2828"
+        else
+            echo "⚠️ ruyipage Marionette 不是 2828"
+
+            cp "$MARIONETTE_FILE" \
+               "$MARIONETTE_FILE.bak.$(date +%Y%m%d_%H%M%S)"
+
+            sed -i -E \
+                "s/MARIONETTE_PORT[[:space:]]*=[[:space:]]*[0-9]+/MARIONETTE_PORT = 2828/" \
+                "$MARIONETTE_FILE"
+
+            echo "✅ 已修改为 2828"
+        fi
+
+    else
+        echo "⚠️ 找不到:"
+        echo "   $MARIONETTE_FILE"
+    fi
+fi
+
+
+# ============================================================
+# 6. 检查 Firefox
+# ============================================================
+
+echo
+echo "[6/7] 检查魔改 Firefox..."
+
+echo
+"$FIREFOX" --version || true
+
+echo
+echo "测试 Firefox Marionette..."
+
+TEST_PROFILE="/tmp/ruyi-fix-test-profile"
+
+rm -rf "$TEST_PROFILE"
+mkdir -p "$TEST_PROFILE"
+
+pkill -f "/opt/ruyipage-firefox/firefox" 2>/dev/null || true
+
+sleep 1
+
+LOG="/tmp/ruyi-firefox-fix-test.log"
+
+"$FIREFOX" \
+    --headless \
+    --marionette \
+    --no-remote \
+    -profile "$TEST_PROFILE" \
+    > "$LOG" 2>&1 &
+
+FIREFOX_PID=$!
+
+echo "Firefox PID: $FIREFOX_PID"
+
+echo "等待 Marionette..."
+
+OK=0
+
+for i in $(seq 1 15); do
+
+    if ss -lnt 2>/dev/null | grep -q "127.0.0.1:2828"; then
+        OK=1
+        break
+    fi
+
+    sleep 1
+done
+
+
+if [ "$OK" = "1" ]; then
+    echo
+    echo "✅ Firefox Marionette 2828 正常"
+else
+    echo
+    echo "❌ Firefox 没有监听 2828"
+    echo
+    echo "Firefox 日志:"
+    cat "$LOG"
+    echo
+    kill "$FIREFOX_PID" 2>/dev/null || true
+    exit 3
+fi
+
+
+# ============================================================
+# 7. 清理 + 总结
+# ============================================================
+
+kill "$FIREFOX_PID" 2>/dev/null || true
+
+rm -rf "$TEST_PROFILE"
+
+echo
+echo "=================================================="
+echo " 修复完成"
+echo "=================================================="
+
+echo
+echo "✅ 魔改 Firefox:"
+echo "   $FIREFOX"
+
+echo
+echo "✅ Marionette:"
+echo "   127.0.0.1:2828"
+
+echo
+echo "✅ PRoot:"
+echo "   PROOT_ENV=1"
+echo "   PROOT_NO_SECCOMP=1"
+
+echo
+echo "✅ browser-launcher:"
+echo "   PRoot 下跳过 setpriv"
+echo "   PRoot 下跳过 uid/gid 降权"
+
+echo
+echo "备份文件:"
+echo "   $BACKUP"
+
+echo
+echo "现在可以重启 Browser Panel，然后测试任务。"
+echo
