@@ -143,11 +143,6 @@ fi
 # 每次启动前修复基础配置
 # ========================================
 
-echo
-echo "========================================"
-echo " Configuring Ubuntu 24.04"
-echo "========================================"
-
 
 # ========================================
 # DNS
@@ -174,14 +169,11 @@ EOF
 
 chmod 755 "$ROOTFS_DIR/usr/sbin/policy-rc.d"
 
-echo "[OK] policy-rc.d"
 
 
 # ========================================
 # APT 配置
 # ========================================
-
-echo "[+] Configuring APT..."
 
 mkdir -p "$ROOTFS_DIR/etc/apt"
 mkdir -p "$ROOTFS_DIR/etc/apt/apt.conf.d"
@@ -201,8 +193,6 @@ EOF
 cat > "$ROOTFS_DIR/etc/apt/apt.conf.d/99proot" <<'EOF'
 APT::Sandbox::User "root";
 EOF
-
-echo "[OK] APT configured"
 
 
 # ========================================
