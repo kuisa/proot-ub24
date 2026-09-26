@@ -35,7 +35,7 @@ python3 -m pip install ruyipage --break-system-packages
 
 面板及浏览器修复(需要在面板及浏览器安装完毕后运行,修复后需要运行bash /root/panel-start.sh重启面板)：
 
-curl -o /root/fix_browser.sh https://raw.githubusercontent.com/kuisa/proot-ub24/main/fix_browser.sh && chmod +x /root/fix_browser.sh && bash /root/fix_browser.sh
+curl -o /root/fix_browser.sh https://raw.githubusercontent.com/kuisa/proot-ub24/main/fix_browser.sh && chmod +x /root/fix_browser.sh && (pkill -f 'node server/index.js' 2>/dev/null || true); && bash /root/fix_browser.sh
 
 其它(cloudflared + webttyd)(可选)：
 
