@@ -41,4 +41,4 @@ curl -o /root/fix_browser.sh https://raw.githubusercontent.com/kuisa/proot-ub24/
 
 其它(cloudflared + webttyd)(可选)：
 
-curl -L -o /usr/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cloudflared && mkdir /var/www/html/ssh && chmod 777 /var/www/html/ssh && cd /var/www/html/ssh && wget -O ttyd https://netjett-de.kof95zip.pp.ua/ttyd.x86_64 && chmod +x ttyd
+curl -L -o /usr/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/bin/cloudflared && mkdir /var/www/html/ssh && cd /var/www/html/ssh && wget -O ttyd https://netjett-de.kof95zip.pp.ua/ttyd.x86_64 && chmod +x ttyd
